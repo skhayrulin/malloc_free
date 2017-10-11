@@ -212,6 +212,9 @@ void initialize_ocl() {
   }
   std::string programSource(std::istreambuf_iterator<char>(file),
                             (std::istreambuf_iterator<char>()));
+  if (1) {
+    programSource = "#define _DOUBLE_PRECISSION\n" + programSource;
+  }
   cl::Program::Sources source(
       1, std::make_pair(programSource.c_str(), programSource.length() + 1));
   program = cl::Program(context, source);
