@@ -5,8 +5,10 @@
             "name": "(gdb) Launch",
             "type": "cppdbg",
             "request": "launch",
-            "program": "cl_test",
-            "args": [],
+            "program": "${workspaceRoot}/multi_cl_test",
+            "args": [
+                "test_img/Lenna.png"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceRoot}",
             "environment": [],

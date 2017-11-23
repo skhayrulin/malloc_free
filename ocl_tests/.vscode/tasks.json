@@ -6,11 +6,18 @@
     "isShellCommand": true,
     "args": [
         "-std=c++0x",
-        "cl_test.cpp",
+        "-O0",
+        "-ggdb",
+        "multi_dev_test.cpp",
+        "utils/ocl_solver.cpp",
+        "-Iutils",
         "-L/usr/lib64/OpenCL/vendors/amd/",
         "-lOpenCL",
+        "-lopencv_core",
+        "-lopencv_imgproc",
+        "-lopencv_highgui",
         "-o",
-        "cl_test"
+        "multi_cl_test"
     ],
     "showOutput": "always"
 }

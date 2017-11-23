@@ -1,52 +1,41 @@
-#include <algorithm>
-#include <array>
-#include <fstream>
-#include <iostream>
-#include <sstream>
-#include <string>
+#include "ocl_solver.h"
 #include <vector>
-#if defined(__APPLE__) || defined(__MACOSX)
-#include "../inc/OpenCL/cl.hpp"
-//	#include <OpenCL/cl_d3d10.h>
-#else
-#include <CL/cl.hpp>
-#endif
 
-#include "cl_struct.h"
-using std::cout;
-using std::endl;
-// TODO write the docs
-template <class T, size_t dim = 4> struct alignas(16) particle {
-  typedef std::array<T, dim> container;
-  container pos;
-  container vel;
-  size_t type;
-  size_t cell_id;
-  size_t get_dim() const { return dim; }
-  T density;
-  T pressure;
-  std::string pos_str() {
-    std::stringstream s;
-    std::for_each(pos.begin(), pos.end(), [&s](T c) { s << c << ' '; });
-    s << '\n';
-    return s.str();
-  }
-};
-
-cl::Kernel work_with_struct;
-cl::Kernel _init_ext_particles;
-cl::Buffer cl_particles;
-cl::Buffer ext_particles;
-cl::Context context;
-std::vector<cl::Device> devices;
-cl::CommandQueue queue;
-cl::Program program;
-const size_t size = 10;
 const int local_NDRange_size = 256;
-std::vector<particle<float>> particles(size);
 enum DEVICE { CPU = 0, GPU = 1, ALL = 2 };
-DEVICE get_device_type() { return ALL; }
-void initialize_ocl() {
+DEVICE get_device_type() { return CPU; }
+
+ocl_solver::ocl_solver(cv::Mat img) {
+  c.rows = img.rows;
+  c.cols = img.cols;
+  init_ocl();
+  init_buffs(img);
+  init_kernels();
+}
+
+void ocl_solver::init_buffs(cv::Mat img) {
+  // buf_img = cl::Image2D(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+  //                      cl::ImageFormat(CL_BGRA, CL_FLOAT), c.cols, c.rows, 0,
+  //                      (void *)img.data);
+  c.total = img.total();
+  create_buffer("img", buf_img, CL_MEM_READ_WRITE,
+                img.total() * 4 * sizeof(float));
+  create_buffer("ret_img", buf_res_img, CL_MEM_READ_WRITE,
+                img.total() * 4 * sizeof(float));
+  std::vector<std::array<float, 4>> data(img.total());
+  for (int i = 0; i < img.rows; ++i) {
+    for (int j = 0; j < img.cols; ++j) {
+      cv::Vec4f v = img.at<cv::Vec4f>(i, j);
+      data[i * c.cols + j][0] = v[0]; // v[0];
+      data[i * c.cols + j][1] = v[1]; // v[1];
+      data[i * c.cols + j][2] = v[2]; // v[2];
+      data[i * c.cols + j][3] = v[3]; // v[3];
+    }
+  }
+  copy_buffer_to_device((void *)(&data[0]), buf_img,
+                        c.total * sizeof(float) * 4);
+}
+void ocl_solver::init_ocl() {
   cl_int err;
   std::vector<cl::Platform> platformList;
   err = cl::Platform::get(
@@ -206,7 +195,7 @@ void initialize_ocl() {
   if (err != CL_SUCCESS) {
     throw std::runtime_error("Failed to create command queue");
   }
-  std::ifstream file("./test.cl");
+  std::ifstream file(c.cl_program_file);
   if (!file.is_open()) {
     throw std::runtime_error("Could not open file with OpenCL program check "
                              "input arguments oclsourcepath: ./test.cl");
@@ -241,8 +230,8 @@ void initialize_ocl() {
       << "./test.cl" << std::endl;
   return;
 }
-void create_ocl_buffer(const char *name, cl::Buffer &b,
-                       const cl_mem_flags flags, const int size) {
+void ocl_solver::create_buffer(const char *name, cl::Buffer &b,
+                               const cl_mem_flags flags, const int size) {
   int err;
   b = cl::Buffer(context, flags, size, NULL, &err);
   if (err != CL_SUCCESS) {
@@ -251,7 +240,7 @@ void create_ocl_buffer(const char *name, cl::Buffer &b,
     throw std::runtime_error(error_m);
   }
 }
-void create_ocl_kernel(const char *name, cl::Kernel &k) {
+void ocl_solver::create_kernel(const char *name, cl::Kernel &k) {
   int err;
   k = cl::Kernel(program, name, &err);
   if (err != CL_SUCCESS) {
@@ -261,8 +250,8 @@ void create_ocl_kernel(const char *name, cl::Kernel &k) {
   }
 }
 
-void copy_buffer_to_device(const void *host_b, cl::Buffer &ocl_b,
-                           const int size) {
+void ocl_solver::copy_buffer_to_device(const void *host_b, cl::Buffer &ocl_b,
+                                       const size_t size) {
   // Actualy we should check  size and type
   int err = queue.enqueueWriteBuffer(ocl_b, CL_TRUE, 0, size, host_b);
   if (err != CL_SUCCESS) {
@@ -272,8 +261,46 @@ void copy_buffer_to_device(const void *host_b, cl::Buffer &ocl_b,
   queue.finish();
 }
 
-void copy_buffer_from_device(void *host_b, const cl::Buffer &ocl_b,
-                             const int size) {
+unsigned int ocl_solver::_run_kernel_blur() {
+  // Stage HashParticles
+  ker_blur.setArg(0, buf_img);
+  ker_blur.setArg(1, buf_res_img);
+  ker_blur.setArg(2, c.cols);
+  ker_blur.setArg(3, c.rows);
+  int err = queue.enqueueNDRangeKernel(
+      ker_blur, cl::NullRange, cl::NDRange(c.cols, c.rows), cl::NullRange);
+  queue.finish();
+  if (err != CL_SUCCESS) {
+    std::cout << err << std::endl;
+    throw std::runtime_error(
+        "An ERROR is appearing during work of kernel ker_blur");
+  }
+  return err;
+}
+cv::Mat ocl_solver::convertToMat(std::vector<std::array<float, 4>> &buffer) {
+  cv::Mat tmp(c.rows, c.cols, CV_32FC4);
+  for (int x = 0; x < c.rows; x++) {
+    for (int y = 0; y < c.cols; y++) {
+      cv::Vec4f &v = tmp.at<cv::Vec4f>(x, y);
+      v[0] = buffer[x * c.cols + y][0];
+      v[1] = buffer[x * c.cols + y][1];
+      v[2] = buffer[x * c.cols + y][2];
+      v[3] = buffer[x * c.cols + y][3];
+    }
+  }
+  return tmp;
+}
+void ocl_solver::init_kernels() { create_kernel("ker_blur", ker_blur); }
+cv::Mat ocl_solver::run() {
+  _run_kernel_blur();
+  std::vector<std::array<float, 4>> buff(c.total);
+  copy_buffer_from_device((void *)(&buff[0]), buf_res_img,
+                          c.total * sizeof(float) * 4);
+  return convertToMat(buff);
+}
+
+void ocl_solver::copy_buffer_from_device(void *host_b, const cl::Buffer &ocl_b,
+                                         const int size) {
   // Actualy we should check  size and type
   int err = queue.enqueueReadBuffer(ocl_b, CL_TRUE, 0, size, host_b);
   if (err != CL_SUCCESS) {
@@ -281,74 +308,4 @@ void copy_buffer_from_device(void *host_b, const cl::Buffer &ocl_b,
         "Could not enqueue read data from buffer  error code is");
   }
   queue.finish();
-}
-
-template <class T> void init_ocl_stuff() {
-  create_ocl_buffer("particles", cl_particles, CL_MEM_READ_WRITE,
-                    particles.size() * sizeof(particle<T>));
-  create_ocl_buffer("ext_particles", ext_particles, CL_MEM_READ_WRITE,
-                    particles.size() * sizeof(extendet_particle));
-  create_ocl_kernel("work_with_struct", work_with_struct);
-  create_ocl_kernel("_init_ext_particles", _init_ext_particles);
-  copy_buffer_to_device(&particles[0], cl_particles,
-                        particles.size() * sizeof(particle<T>));
-}
-
-unsigned int _run_work_with_struct() {
-  // Stage HashParticles
-  work_with_struct.setArg(0, ext_particles);
-  work_with_struct.setArg(1, cl_particles);
-  int err = queue.enqueueNDRangeKernel(work_with_struct, cl::NullRange,
-                                       cl::NDRange(particles.size()),
-#if defined(__APPLE__)
-                                       cl::NullRange, NULL, NULL);
-#else
-                                       cl::NDRange((int)(local_NDRange_size)),
-                                       NULL, NULL);
-#endif
-#if QUEUE_EACH_KERNEL
-  queue.finish();
-#endif
-  if (err != CL_SUCCESS) {
-    throw std::runtime_error(
-        "An ERROR is appearing during work of kernel _runHashParticles");
-  }
-  return err;
-}
-
-unsigned int _run_init_ext_particles() {
-  // Stage HashParticles
-  _init_ext_particles.setArg(0, ext_particles);
-  int err = queue.enqueueNDRangeKernel(_init_ext_particles, cl::NullRange,
-                                       cl::NDRange(particles.size()),
-#if defined(__APPLE__)
-                                       cl::NullRange, NULL, NULL);
-#else
-                                       cl::NDRange((int)(local_NDRange_size)),
-                                       NULL, NULL);
-#endif
-#if QUEUE_EACH_KERNEL
-  queue.finish();
-#endif
-  if (err != CL_SUCCESS) {
-    throw std::runtime_error(
-        "An ERROR is appearing during work of kernel _init_ext_particles");
-  }
-  return err;
-}
-
-int main() {
-  cout << "SIZEOF PARTICLE STRUCT FLOAT IS " << sizeof(particle<float>) << endl;
-  cout << "SIZEOF PARTICLE STRUCT DOUBLE IS " << sizeof(particle<double>)
-       << endl;
-
-  initialize_ocl();
-  init_ocl_stuff<float>();
-  _run_init_ext_particles();
-  _run_work_with_struct();
-  copy_buffer_from_device(&particles[0], cl_particles,
-                          particles.size() * sizeof(particle<float>));
-  std::for_each(particles.begin(), particles.end(),
-                [](particle<float> &p) { cout << p.pos_str(); });
-  return 0;
 }
