@@ -42,6 +42,7 @@ private:
   cl::Kernel ker_blur;
   cl::Buffer buf_img;
   cl::Buffer buf_res_img;
+  cl::Buffer buf_mask;
   cl::Context context;
   std::vector<cl::Device> devices;
   cl::CommandQueue queue;

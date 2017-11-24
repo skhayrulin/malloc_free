@@ -12,7 +12,6 @@ ocl_solver::ocl_solver(cv::Mat img) {
   init_buffs(img);
   init_kernels();
 }
-
 void ocl_solver::init_buffs(cv::Mat img) {
   // buf_img = cl::Image2D(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
   //                      cl::ImageFormat(CL_BGRA, CL_FLOAT), c.cols, c.rows, 0,
@@ -22,10 +21,13 @@ void ocl_solver::init_buffs(cv::Mat img) {
                 img.total() * 4 * sizeof(float));
   create_buffer("ret_img", buf_res_img, CL_MEM_READ_WRITE,
                 img.total() * 4 * sizeof(float));
+  create_buffer("mask", buf_mask, CL_MEM_READ_WRITE, 9 * sizeof(float));
+  float m[] = {0.f,       1.f / 6.f, 0.f,       1.f / 6.f, 1.f / 3.f,
+               1.f / 6.f, 0.f,       1.f / 6.f, 0.f};
   std::vector<std::array<float, 4>> data(img.total());
   for (int i = 0; i < img.rows; ++i) {
     for (int j = 0; j < img.cols; ++j) {
-      cv::Vec4f v = img.at<cv::Vec4f>(i, j);
+      cv::Vec3f v = img.at<cv::Vec3f>(i, j);
       data[i * c.cols + j][0] = v[0]; // v[0];
       data[i * c.cols + j][1] = v[1]; // v[1];
       data[i * c.cols + j][2] = v[2]; // v[2];
@@ -34,6 +36,7 @@ void ocl_solver::init_buffs(cv::Mat img) {
   }
   copy_buffer_to_device((void *)(&data[0]), buf_img,
                         c.total * sizeof(float) * 4);
+  copy_buffer_to_device((void *)m, buf_mask, sizeof(float) * 9);
 }
 void ocl_solver::init_ocl() {
   cl_int err;
@@ -265,8 +268,9 @@ unsigned int ocl_solver::_run_kernel_blur() {
   // Stage HashParticles
   ker_blur.setArg(0, buf_img);
   ker_blur.setArg(1, buf_res_img);
-  ker_blur.setArg(2, c.cols);
-  ker_blur.setArg(3, c.rows);
+  ker_blur.setArg(2, buf_mask);
+  ker_blur.setArg(3, c.cols);
+  ker_blur.setArg(4, c.rows);
   int err = queue.enqueueNDRangeKernel(
       ker_blur, cl::NullRange, cl::NDRange(c.cols, c.rows), cl::NullRange);
   queue.finish();
@@ -285,7 +289,7 @@ cv::Mat ocl_solver::convertToMat(std::vector<std::array<float, 4>> &buffer) {
       v[0] = buffer[x * c.cols + y][0];
       v[1] = buffer[x * c.cols + y][1];
       v[2] = buffer[x * c.cols + y][2];
-      v[3] = buffer[x * c.cols + y][3];
+      // v[3] = buffer[x * c.cols + y][3];
     }
   }
   return tmp;
@@ -293,10 +297,10 @@ cv::Mat ocl_solver::convertToMat(std::vector<std::array<float, 4>> &buffer) {
 void ocl_solver::init_kernels() { create_kernel("ker_blur", ker_blur); }
 cv::Mat ocl_solver::run() {
   _run_kernel_blur();
-  std::vector<std::array<float, 4>> buff(c.total);
-  copy_buffer_from_device((void *)(&buff[0]), buf_res_img,
+  std::vector<std::array<float, 4>> data(c.total);
+  copy_buffer_from_device((void *)(&data[0]), buf_res_img,
                           c.total * sizeof(float) * 4);
-  return convertToMat(buff);
+  return convertToMat(data);
 }
 
 void ocl_solver::copy_buffer_from_device(void *host_b, const cl::Buffer &ocl_b,
