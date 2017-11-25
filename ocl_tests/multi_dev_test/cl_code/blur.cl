@@ -20,12 +20,12 @@ __kernel void ker_blur(__global float4* img, __global float4 * ret_img, __global
     for(int a = -1; a <= 1; a++) {
         for(int b = -1; b <= 1; b++) {
 			float k = mask[(a + 1) * 3 + b + 1];
-			int ij = (id * get_global_size(0)+jd) + get_global_size(0) * a + b;
+			int ij = (id * get_global_size(1)+jd) + get_global_size(1) * a + b;
 			sum += k * img[ij];
         }
     }
 	
-	ret_img[id * get_global_size(0)+jd] = sum;
+	ret_img[id * get_global_size(1)+jd] = sum;
 	//ret_img[id *cols  + jd]= img[id*cols + jd];
 	
 }

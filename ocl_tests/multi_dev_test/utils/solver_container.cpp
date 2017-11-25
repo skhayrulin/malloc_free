@@ -1,7 +1,7 @@
 #include "solver_container.h"
 
 solver_container::solver_container(size_t count, cv::Mat img) {
-  std::vector<int> lims = {0, 0, img.rows >> 1, img.cols};
+  std::vector<int> lims = {0, 0, img.rows, img.cols >> 1};
   for (size_t i = 0; i < count; ++i) {
     std::shared_ptr<ocl_solver> solver(new ocl_solver(img, lims));
     container.push_back(solver);
