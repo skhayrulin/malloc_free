@@ -1,13 +1,13 @@
 #include "ocl_solver.h"
-#include <vector>
 
 const int local_NDRange_size = 256;
 enum DEVICE { CPU = 0, GPU = 1, ALL = 2 };
 DEVICE get_device_type() { return CPU; }
 
-ocl_solver::ocl_solver(cv::Mat img) {
-  c.rows = img.rows;
-  c.cols = img.cols;
+ocl_solver::ocl_solver(cv::Mat img, const std::vector<int> &rec) {
+  assert(rec.size() == 4);
+  c.rows = rec[2];
+  c.cols = rec[3];
   init_ocl();
   init_buffs(img);
   init_kernels();
@@ -17,14 +17,13 @@ void ocl_solver::init_buffs(cv::Mat img) {
   //                      cl::ImageFormat(CL_BGRA, CL_FLOAT), c.cols, c.rows, 0,
   //                      (void *)img.data);
   c.total = img.total();
-  create_buffer("img", buf_img, CL_MEM_READ_WRITE,
-                img.total() * 4 * sizeof(float));
+  create_buffer("img", buf_img, CL_MEM_READ_WRITE, c.total * 4 * sizeof(float));
   create_buffer("ret_img", buf_res_img, CL_MEM_READ_WRITE,
-                img.total() * 4 * sizeof(float));
+                c.total * 4 * sizeof(float));
   create_buffer("mask", buf_mask, CL_MEM_READ_WRITE, 9 * sizeof(float));
   float m[] = {0.f,       1.f / 6.f, 0.f,       1.f / 6.f, 1.f / 3.f,
                1.f / 6.f, 0.f,       1.f / 6.f, 0.f};
-  std::vector<std::array<float, 4>> data(img.total());
+  std::vector<std::array<float, 4>> data(c.total);
   for (int i = 0; i < img.rows; ++i) {
     for (int j = 0; j < img.cols; ++j) {
       cv::Vec3f v = img.at<cv::Vec3f>(i, j);
