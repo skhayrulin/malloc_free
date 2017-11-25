@@ -23,7 +23,7 @@ struct config {
 };
 class ocl_solver {
 public:
-  ocl_solver(cv::Mat);
+  ocl_solver(cv::Mat, const std::vector<int> &);
   cv::Mat run();
 
 private:
