@@ -19,6 +19,8 @@ struct config {
   const std::string cl_program_file = "cl_code/blur.cl";
   int rows;
   int cols;
+  int start_x;
+  int start_y;
   size_t total;
 };
 class ocl_solver {

@@ -8,6 +8,8 @@ ocl_solver::ocl_solver(cv::Mat img, const std::vector<int> &rec) {
   assert(rec.size() == 4);
   c.rows = rec[2];
   c.cols = rec[3];
+  c.start_x = rec[0];
+  c.start_y = rec[1];
   init_ocl();
   init_buffs(img);
   init_kernels();
@@ -26,7 +28,7 @@ void ocl_solver::init_buffs(cv::Mat img) {
   std::vector<std::array<float, 4>> data(c.total);
   for (int i = 0; i < c.rows; ++i) {
     for (int j = 0; j < c.cols; ++j) {
-      cv::Vec3f v = img.at<cv::Vec3f>(i, j);
+      cv::Vec3f v = img.at<cv::Vec3f>(c.start_x + i, c.start_y + j);
       data[i * c.cols + j][0] = v[0]; // v[0];
       data[i * c.cols + j][1] = v[1]; // v[1];
       data[i * c.cols + j][2] = v[2]; // v[2];
