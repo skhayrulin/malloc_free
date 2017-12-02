@@ -10,6 +10,10 @@
 #endif
 enum type { CPU, GPU };
 struct device {
+  device(cl::Device &d, cl::Context &c, int p_id, int id)
+      : platform_id(p_id), dev_id(id), device(d), context(c) {
+    init_params();
+  }
   type t;
   int platform_id;
   int dev_id;
@@ -17,7 +21,7 @@ struct device {
   std::string name;
   cl::Device device;
   cl::Context context;
-  int device_coumpute_unit_num; // criteria to sort devices
+  size_t device_coumpute_unit_num; // criteria to sort devices
   bool operator<(const device &d1) {
     return device_coumpute_unit_num < d1.device_coumpute_unit_num;
   }
@@ -29,19 +33,9 @@ struct device {
     result = device.getInfo(CL_DEVICE_NAME,
                             &c_buffer); // CL_INVALID_VALUE = -30;
     if (result == CL_SUCCESS) {
-      result = device.getInfo(CL_DEVICE_NAME,
-                              &c_buffer); // CL_INVALID_VALUE = -30;
-      if (result == CL_SUCCESS) {
-        std::cout << "CL_CONTEXT_PLATFORM [" << platform_id
-                  << "]: CL_DEVICE_NAME [" << dev_id << "]:\t" << c_buffer
-                  << "\n"
-                  << std::endl;
-      }
       std::cout << "CL_CONTEXT_PLATFORM [" << platform_id
                 << "]: CL_DEVICE_NAME [" << dev_id << "]:\t" << c_buffer << "\n"
                 << std::endl;
-    }
-    if (strlen(c_buffer) < 1000) {
     }
     result = device.getInfo(CL_DEVICE_TYPE, &c_buffer);
     if (result == CL_SUCCESS) {
@@ -62,24 +56,18 @@ struct device {
                 << "]: CL_DEVICE_MAX_COMPUTE_UNITS [" << dev_id << "]: \t"
                 << comp_unints_count << std::endl;
     }
-    result = device.getInfo(CL_DEVICE_GLOBAL_MEM_SIZE, &memory_info);
-    if (result == CL_SUCCESS) {
-      std::cout << "CL_CONTEXT_PLATFORM [" << platform_id
-                << "]: CL_DEVICE_GLOBAL_MEM_SIZE [" << dev_id << "]: \t"
-                << memory_info << std::endl;
-    }
-    result = device.getInfo(CL_DEVICE_GLOBAL_MEM_CACHE_SIZE, &memory_info);
-    if (result == CL_SUCCESS) {
-      std::cout << "CL_CONTEXT_PLATFORM [" << platform_id
-                << "]: CL_DEVICE_GLOBAL_MEM_CACHE_SIZE [" << dev_id << "]:\t"
-                << memory_info << std::endl;
-    }
-    result = device.getInfo(CL_DEVICE_LOCAL_MEM_SIZE, &memory_info);
-    if (result == CL_SUCCESS) {
-      std::cout << "CL_CONTEXT_PLATFORM " << platform_id
-                << ": CL_DEVICE_LOCAL_MEM_SIZE [" << dev_id << "]:\t"
-                << memory_info << std::endl;
-    }
+  }
+
+private:
+  void init_params() {
+    char c_buffer[100];
+    cl_int result;
+    result = device.getInfo(CL_DEVICE_NAME, &c_buffer);
+    name = c_buffer;
+    result = device.getInfo(CL_DEVICE_TYPE, &c_buffer);
+    type = ((int)c_buffer[0] == CL_DEVICE_TYPE_CPU) ? CPU : GPU;
+    result =
+        device.getInfo(CL_DEVICE_MAX_COMPUTE_UNITS, &device_coumpute_unit_num);
   }
 };
 

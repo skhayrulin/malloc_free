@@ -3,6 +3,7 @@
 #include "ocl_solver.h"
 #include <memory>
 #include <vector>
+
 class solver_container {
 public:
   solver_container &operator=(const solver_container &) = delete;
