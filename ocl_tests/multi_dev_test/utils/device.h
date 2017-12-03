@@ -11,7 +11,7 @@
 enum type { CPU, GPU };
 struct device {
   device(cl::Device &d, cl::Context &c, int p_id, int id)
-      : platform_id(p_id), dev_id(id), dev(d), context(c) {
+      : platform_id(p_id), dev_id(id), dev(d), context({device}) {
     init_params();
   }
   type t;
