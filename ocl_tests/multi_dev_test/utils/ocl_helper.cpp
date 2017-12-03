@@ -46,7 +46,7 @@ void init_cl_devices(std::priority_queue<std::shared_ptr<device>> &q) {
   devices = context.getInfo<CL_CONTEXT_DEVICES>();
   // std::distance(platform_list, it);
   for (size_t i = 0; i < devices.size(); ++i) {
-    std::shared_ptr<device> d(new device(devices[i], context, 0, i));
+    std::shared_ptr<device> d(new device(devices[i], 0, i));
     q.push(d);
     std::cout << "Init device " << d->name << std::endl;
   }
