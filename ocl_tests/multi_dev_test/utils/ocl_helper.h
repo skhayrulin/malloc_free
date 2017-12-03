@@ -9,5 +9,5 @@
 #else
 #include <CL/cl.hpp>
 #endif
-std::priority_queue<std::shared_ptr<device>> gen_dev_queue();
+std::priority_queue<std::shared_ptr<device>> get_dev_queue();
 #endif // OCL_HELPER

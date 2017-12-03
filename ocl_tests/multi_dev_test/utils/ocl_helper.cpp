@@ -1,27 +1,27 @@
 #include "ocl_helper.h"
 #include "error.h"
+#include <algorithm>
 #include <iostream>
-enum DEVICE { CPU = 0, GPU = 1, ALL = 2 };
+
+void show_platform_info(const cl::Platform &);
+void init_cl_devices(std::priority_queue<std::shared_ptr<device>> &);
 
 std::priority_queue<std::shared_ptr<device>> get_dev_queue() {
   std::priority_queue<std::shared_ptr<device>> q;
+  init_cl_devices(q);
   if (q.size() < 1) {
     throw ocl_error("No OpenCL devices were found");
   }
   return q;
 }
 
-size_t get_device_count(cl::Platform &p) {
-  cl::Context contex;
-  cl_context_properties cprops[3] = {
-      CL_CONTEXT_PLATFORM, (cl_context_properties)(platformList[pl_id])(), 0};
-  context = cl::Context(device_type[ALL], cprops, NULL, NULL, &err);
+size_t get_device_count(const cl::Platform &p) {
   std::vector<cl::Device> devices;
-  devices = context.getInfo<CL_CONTEXT_DEVICES>();
-  return device.size();
+  p.getDevices(CL_DEVICE_TYPE_ALL, &devices);
+  return devices.size();
 }
 
-void init_cl_devices() {
+void init_cl_devices(std::priority_queue<std::shared_ptr<device>> &q) {
   cl_int err;
   cl::Context context;
   std::vector<cl::Platform> platform_list;
@@ -30,46 +30,36 @@ void init_cl_devices() {
   if (platform_list.size() < 1 || err != CL_SUCCESS) {
     throw ocl_error("No OpenCL platforms were found");
   }
-  cl_platform_id cl_pl_id[10];
-  cl_uint n_pl;
-  clGetPlatformIDs(10, cl_pl_id, &n_pl);
-  cl_int ciErrNum;
-  int sz;
-  char c_buffer[100];
-  for (int i = 0; i < (int)n_pl; i++) {
-    // Get OpenCL platform name and version
-    ciErrNum = clGetPlatformInfo(cl_pl_id[i], CL_PLATFORM_VERSION,
-                                 sz = sizeof(c_buffer), c_buffer, NULL);
-    if (ciErrNum == CL_SUCCESS) {
-      std::cout << "CL_PLATFORM_VERSION [" << i << "]: \t" << c_buffer << "\n";
-    } else {
-      std::cout << "No information available for platform "
-                << "\n ";
-    }
-  }
-  // 0-CPU, 1-GPU // depends on the time order of system OpenCL drivers
-  // installation on your local machine
-  // CL_DEVICE_TYPE
-  // added autodetection of device number corresonding to preferrable device
-  // type (CPU|GPU) | otherwise the choice will be made from list of existing
-  // devices
-  cl_uint ciDeviceCount = 0;
-  cl_device_id *devices_t;
-  cl_int result;
-  unsigned int deviceNum = 0;
-  // Selection of more appropriate device
-  // Select platforms with bigest amount of devices
+  // std::for_each(platform_list.begin(), platform_list.end(),
+  // show_platform_info);
   auto it =
       std::max_element(platform_list.begin(), platform_list.end(),
-                       [&](cl::Platform &p1, cl::Platform &p2) {
-                         return get_device_count(p1) > get_device_count(p2);
+                       [](const cl::Platform &p1, const cl::Platform &p2) {
+                         return get_device_count(p1) < get_device_count(p2);
                        });
-
+  std::cout << "Use platform" << std::endl;
+  show_platform_info(*it);
   cl_context_properties cprops[3] = {CL_CONTEXT_PLATFORM,
                                      (cl_context_properties)(*it)(), 0};
-  context = cl::Context(device_type[ALL], cprops, NULL, NULL, &err);
+  context = cl::Context(CL_DEVICE_TYPE_ALL, cprops, NULL, NULL, &err);
   std::vector<cl::Device> devices;
   devices = context.getInfo<CL_CONTEXT_DEVICES>();
+  // std::distance(platform_list, it);
   for (size_t i = 0; i < devices.size(); ++i) {
-    std::shared_ptr<device> d(new device(1, i, devices[i], context));
+    std::shared_ptr<device> d(new device(devices[i], context, 0, i));
+    q.push(d);
+    std::cout << "Init device " << d->name << std::endl;
   }
+}
+
+void show_platform_info(const cl::Platform &platform) {
+  // Get OpenCL platform name and version
+  std::cout << "Platform Name: " << platform.getInfo<CL_PLATFORM_NAME>()
+            << std::endl;
+  std::cout << "Platform Vendor: " << platform.getInfo<CL_PLATFORM_VENDOR>()
+            << std::endl;
+  std::cout << "Platform Version: " << platform.getInfo<CL_PLATFORM_VERSION>()
+            << std::endl;
+  std::cout << "Devices: " << get_device_count(platform) << std::endl;
+  std::cout << "===============================================" << std::endl;
+}

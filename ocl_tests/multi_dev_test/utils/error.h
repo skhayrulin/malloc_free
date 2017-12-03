@@ -1,7 +1,7 @@
 #ifndef _ERROR_
 #define _ERROR_
+#include <sstream>
 #include <stdexcept>
-#include <stream>
 #include <string>
 class ocl_error : public std::runtime_error {
 public:

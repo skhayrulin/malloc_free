@@ -1,7 +1,9 @@
 #ifndef SOLVER_CONTAINER
 #define SOLVER_CONTAINER
+#include "device.h"
 #include "ocl_solver.h"
 #include <memory>
+#include <queue>
 #include <vector>
 
 class solver_container {

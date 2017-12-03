@@ -1,9 +1,11 @@
 #ifndef OCL_SOLVER
 #define OCL_SOLVER
+#include "device.h"
 #include <algorithm>
 #include <array>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <opencv2/core/core.hpp>
 #include <sstream>
 #include <string>
@@ -25,7 +27,7 @@ struct config {
 };
 class ocl_solver {
 public:
-  ocl_solver(cv::Mat, const std::vector<int> &);
+  ocl_solver(cv::Mat, const std::vector<int> &, std::shared_ptr<device>);
   cv::Mat run();
 
 private:
@@ -40,15 +42,14 @@ private:
                              const size_t size);
   void copy_buffer_from_device(void *host_b, const cl::Buffer &ocl_b,
                                const int size);
-  cv::Mat convertToMat(std::vector<std::array<float, 4>> &buffer);
+  cv::Mat convert_to_mat(std::vector<std::array<float, 4>> &buffer);
   cl::Kernel ker_blur;
   cl::Buffer buf_img;
   cl::Buffer buf_res_img;
   cl::Buffer buf_mask;
-  cl::Context context;
-  std::vector<cl::Device> devices;
   cl::CommandQueue queue;
   cl::Program program;
+  std::shared_ptr<device> dev;
   config c;
 };
 

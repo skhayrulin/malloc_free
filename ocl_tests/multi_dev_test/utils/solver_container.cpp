@@ -1,16 +1,22 @@
 #include "solver_container.h"
 #include "error.h"
+#include "ocl_helper.h"
 solver_container::solver_container(size_t count, cv::Mat img) {
-  std::vector<int> lims = {0, 0, img.rows, img.cols >> 1};
-  for (size_t i = 0; i < count; ++i) {
-    std::shared_ptr<ocl_solver> solver(new ocl_solver(img, lims));
+  std::priority_queue<std::shared_ptr<device>> dev_q = get_dev_queue();
+  int i = 0;
+  while (!dev_q.empty()) {
+    std::vector<int> lims = {0, i * img.cols >> 1, img.rows, img.cols >> 1};
+    ++i;
+    std::shared_ptr<ocl_solver> solver(new ocl_solver(img, lims, dev_q.top()));
+    dev_q.pop();
     container.push_back(solver);
   }
 }
 
 cv::Mat solver_container::run() {
+  cv::Mat result;
   for (auto s : container) {
-    cv::Mat result = s->run();
-    return result;
+    result = s->run();
   }
+  return result;
 }
