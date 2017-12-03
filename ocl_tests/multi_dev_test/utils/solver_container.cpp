@@ -5,7 +5,8 @@ solver_container::solver_container(size_t count, cv::Mat img) {
   std::priority_queue<std::shared_ptr<device>> dev_q = get_dev_queue();
   int i = 0;
   while (!dev_q.empty()) {
-    std::vector<int> lims = {0, i * img.cols >> 1, img.rows, img.cols >> 1};
+    int cols = (dev_q.size() > 1) ? img.cols >> 1 : img.cols;
+    std::vector<int> lims = {0, i * cols, img.rows, cols};
     ++i;
     std::shared_ptr<ocl_solver> solver(new ocl_solver(img, lims, dev_q.top()));
     dev_q.pop();
