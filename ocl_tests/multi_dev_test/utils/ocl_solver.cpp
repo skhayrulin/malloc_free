@@ -30,7 +30,7 @@ void ocl_solver::init_buffs(cv::Mat img) {
       data[i * c.cols + j][0] = v[0];
       data[i * c.cols + j][1] = v[1];
       data[i * c.cols + j][2] = v[2];
-      // data[i * c.cols + j][3] = v[3];
+      // data[i * c.cols + j][3] = 0.f;
     }
   }
   copy_buffer_to_device((void *)(&data[0]), buf_img,
@@ -133,7 +133,7 @@ cv::Mat ocl_solver::convert_to_mat(std::vector<std::array<float, 4>> &buffer) {
       v[0] = buffer[x * c.cols + y][0];
       v[1] = buffer[x * c.cols + y][1];
       v[2] = buffer[x * c.cols + y][2];
-      // v[3] = buffer[x * c.cols + y][3];
+      v[3] = buffer[x * c.cols + y][3];
     }
   }
   return tmp;

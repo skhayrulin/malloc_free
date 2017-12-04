@@ -29,6 +29,7 @@ class ocl_solver {
 public:
   ocl_solver(cv::Mat, const std::vector<int> &, std::shared_ptr<device>);
   cv::Mat run();
+  const config &get_c() { return c; }
 
 private:
   void init_ocl();

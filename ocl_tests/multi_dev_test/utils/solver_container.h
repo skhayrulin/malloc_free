@@ -20,5 +20,6 @@ private:
   void synk() {}
   solver_container(size_t count, cv::Mat img);
   std::vector<std::shared_ptr<ocl_solver>> container;
+  std::vector<int> real_size;
 };
 #endif // SOLVER_CONTAINER
