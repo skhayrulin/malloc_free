@@ -11,11 +11,12 @@
 
 __kernel void ker_blur(__global float4* img, __global float4 * ret_img, __global float* mask, uint cols, uint rows){
 	int id = get_global_id(0);
-	if(id == 0 || id == get_global_size(0))
-		return;
 	int jd = get_global_id(1);
-	if(jd == 0 || jd == get_global_size(1))
+	if((id == 0 || id == get_global_size(0)) || 
+	   (jd == 0 || jd == get_global_size(1))){
+		ret_img[id * get_global_size(1)+jd] = img[id * get_global_size(1)+jd];
 		return;
+	}
 	float4 sum = (float4)(0.0f, 0.0f, 0.0f, 0.0f);
     for(int a = -1; a <= 1; a++) {
         for(int b = -1; b <= 1; b++) {
