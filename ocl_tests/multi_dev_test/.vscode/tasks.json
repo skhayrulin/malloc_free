@@ -1,0 +1,26 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "0.1.0",
+    "command": "g++",
+    "isShellCommand": true,
+    "args": [
+        "-std=c++0x",
+        "-O0",
+        "-ggdb",
+        "multi_dev_test.cpp",
+        "utils/ocl_solver.cpp",
+        "utils/solver_container.cpp",
+        "utils/ocl_helper.cpp",
+        "-Iutils",
+        "-L/usr/lib64/OpenCL/vendors/amd/",
+        "-lOpenCL",
+        "-lopencv_core",
+        "-lopencv_imgproc",
+        "-lopencv_highgui",
+        "-pthread",
+        "-o",
+        "multi_cl_test"
+    ],
+    "showOutput": "always"
+}
