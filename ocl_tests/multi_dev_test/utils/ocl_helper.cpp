@@ -23,6 +23,8 @@ size_t get_device_count(const cl::Platform &p) {
 
 void init_devices(cl::Platform &p,
                   std::priority_queue<std::shared_ptr<device>> &q) {
+  cl_int err;
+  cl::Context context;
   cl_context_properties cprops[3] = {CL_CONTEXT_PLATFORM,
                                      (cl_context_properties)(p)(), 0};
   context = cl::Context(CL_DEVICE_TYPE_ALL, cprops, NULL, NULL, &err);
@@ -38,7 +40,6 @@ void init_devices(cl::Platform &p,
 
 void init_cl_devices(std::priority_queue<std::shared_ptr<device>> &q) {
   cl_int err;
-  cl::Context context;
   std::vector<cl::Platform> platform_list;
   err = cl::Platform::get(
       &platform_list); // TODO make check that returned value isn't error
