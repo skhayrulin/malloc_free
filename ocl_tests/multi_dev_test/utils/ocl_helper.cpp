@@ -21,6 +21,21 @@ size_t get_device_count(const cl::Platform &p) {
   return devices.size();
 }
 
+void init_devices(cl::Platform &p,
+                  std::priority_queue<std::shared_ptr<device>> &q) {
+  cl_context_properties cprops[3] = {CL_CONTEXT_PLATFORM,
+                                     (cl_context_properties)(p)(), 0};
+  context = cl::Context(CL_DEVICE_TYPE_ALL, cprops, NULL, NULL, &err);
+  std::vector<cl::Device> devices;
+  devices = context.getInfo<CL_CONTEXT_DEVICES>();
+  // std::distance(platform_list, it);
+  for (size_t i = 0; i < devices.size(); ++i) {
+    std::shared_ptr<device> d(new device(devices[i], 0, i));
+    q.push(d);
+    std::cout << "Init device " << d->name << std::endl;
+  }
+}
+
 void init_cl_devices(std::priority_queue<std::shared_ptr<device>> &q) {
   cl_int err;
   cl::Context context;
@@ -37,18 +52,16 @@ void init_cl_devices(std::priority_queue<std::shared_ptr<device>> &q) {
                        [](const cl::Platform &p1, const cl::Platform &p2) {
                          return get_device_count(p1) < get_device_count(p2);
                        });
-  std::cout << "Use platform" << std::endl;
-  show_platform_info(*it);
-  cl_context_properties cprops[3] = {CL_CONTEXT_PLATFORM,
-                                     (cl_context_properties)(*it)(), 0};
-  context = cl::Context(CL_DEVICE_TYPE_ALL, cprops, NULL, NULL, &err);
-  std::vector<cl::Device> devices;
-  devices = context.getInfo<CL_CONTEXT_DEVICES>();
-  // std::distance(platform_list, it);
-  for (size_t i = 0; i < devices.size(); ++i) {
-    std::shared_ptr<device> d(new device(devices[i], 0, i));
-    q.push(d);
-    std::cout << "Init device " << d->name << std::endl;
+  if (get_device_count(*it) == 1 && platform_list.size() > 1) {
+    std::cout << "Use all available platforms" << std::endl;
+    for_each(platform_list.begin(), platform_list.end(), [&](cl::Platform &p) {
+      show_platform_info(p);
+      init_devices(p, q);
+    });
+  } else {
+    std::cout << "Use platform" << std::endl;
+    show_platform_info(*it);
+    init_devices(*it, q);
   }
 }
 
