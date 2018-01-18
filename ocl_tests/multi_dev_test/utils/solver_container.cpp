@@ -7,7 +7,7 @@ solver_container::solver_container(size_t count, cv::Mat img) {
   real_size = {0, 0, img.rows, img.cols};
   std::priority_queue<std::shared_ptr<device>> dev_q = get_dev_queue();
   int i = 0;
-  int cols = (dev_q.size() > 1) ? img.cols >> 1 : img.cols;
+  int cols = (dev_q.size() > 1) ? img.cols / dev_q.size() : img.cols;
   while (!dev_q.empty()) {
     std::vector<int> lims = {0, i * cols - ((i == 0) ? 0 : 1), img.rows,
                              cols + ((dev_q.size() == 1) ? 0 : 1)};
