@@ -22,3 +22,6 @@ $(TARGET): $(OBJ)
 
 %.o: %.cpp
 	$(CXXFLAGS) $(OCL_INC) -I. -c -o "$@" "$<"
+
+clean:
+	rm $(TARGET) *.o

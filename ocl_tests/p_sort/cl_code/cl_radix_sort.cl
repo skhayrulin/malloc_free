@@ -1,23 +1,22 @@
-#include "inc/radixsort.h"
+#include "util/radixsort.h"
 /** COUNT KERNEL **/
 
 __kernel void count(const __global int* input,
-                    __global int* output,
-                    __local int* local_histo,
-                    const int pass,
-                    const int nkeys,
-                    const __global int * particles)
+    __global int* output,
+    __local int* local_histo,
+    const int pass,
+    const int nkeys)
 {
-    uint g_id = (uint) get_global_id(0); // gloabal id for ellement in group 
-    uint l_id = (uint) get_local_id(0); // local id for ellement in group
-    uint l_size = (uint) get_local_size(0); // local size of group
+    uint g_id = (uint)get_global_id(0); // gloabal id for ellement in group
+    uint l_id = (uint)get_local_id(0); // local id for ellement in group
+    uint l_size = (uint)get_local_size(0); // local size of group
 
-    uint group_id = (uint) get_group_id(0); // id of group
-    uint n_groups = (uint) get_num_groups(0); // number of groups
+    uint group_id = (uint)get_group_id(0); // id of group
+    uint n_groups = (uint)get_num_groups(0); // number of groups
 
     //Set the buckets of each item to 0
     int i;
-    for(i = 0; i < BUCK; i++) { 
+    for (i = 0; i < BUCK; i++) {
         local_histo[i * l_size + l_id] = 0;
     }
 
@@ -28,8 +27,8 @@ __kernel void count(const __global int* input,
 
     //Calculate where to start on the global array
     int start = g_id * size;
-    for(i = 0; i < size; i++) {
-        int key = particles[input[i + start]];
+    for (i = 0; i < size; i++) {
+        int key = input[i + start];
         //Extract the corresponding radix of the key
         key = ((key >> (pass * RADIX)) & (BUCK - 1));
         //Count the ocurrences in the corresponding bucket
@@ -38,7 +37,7 @@ __kernel void count(const __global int* input,
 
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    for(i = 0; i < BUCK; i++) {
+    for (i = 0; i < BUCK; i++) {
         //"from" references the local buckets
         int from = i * l_size + l_id;
         //"to" maps to the global buckets
@@ -52,16 +51,16 @@ __kernel void count(const __global int* input,
 
 /** SCAN KERNEL **/
 __kernel void scan(__global int* input,
-                   __global int* output,
-                   __local int* local_scan,
-                   __global int* block_sum)
+    __global int* output,
+    __local int* local_scan,
+    __global int* block_sum)
 {
-    uint g_id = (uint) get_global_id(0);
-    uint l_id = (uint) get_local_id(0);
-    uint l_size = (uint) get_local_size(0);
+    uint g_id = (uint)get_global_id(0);
+    uint l_id = (uint)get_local_id(0);
+    uint l_size = (uint)get_local_size(0);
 
-    uint group_id = (uint) get_group_id(0);
-    uint n_groups = (uint) get_num_groups(0);
+    uint group_id = (uint)get_group_id(0);
+    uint n_groups = (uint)get_num_groups(0);
 
     //Store data from global to local memory to operate
     local_scan[2 * l_id] = input[2 * g_id];
@@ -69,9 +68,9 @@ __kernel void scan(__global int* input,
 
     //UP SWEEP
     int d, offset = 1;
-    for(d = l_size; d > 0; d >>= 1){
+    for (d = l_size; d > 0; d >>= 1) {
         barrier(CLK_LOCAL_MEM_FENCE);
-        if(l_id < d) {
+        if (l_id < d) {
             int a = offset * (2 * l_id + 1) - 1;
             int b = offset * (2 * l_id + 2) - 1;
             local_scan[b] += local_scan[a];
@@ -81,7 +80,7 @@ __kernel void scan(__global int* input,
 
     if (l_id == 0) {
         //Store the full sum on last item
-        if(block_sum != NULL){
+        if (block_sum != NULL) {
             block_sum[group_id] = local_scan[l_size * 2 - 1];
         }
 
@@ -90,10 +89,10 @@ __kernel void scan(__global int* input,
     }
 
     //DOWN SWEEP
-    for(d = 1; d < (l_size*2); d *= 2) {
+    for (d = 1; d < (l_size * 2); d *= 2) {
         offset >>= 1;
         barrier(CLK_LOCAL_MEM_FENCE);
-        if(l_id < d) {
+        if (l_id < d) {
             int a = offset * (2 * l_id + 1) - 1;
             int b = offset * (2 * l_id + 2) - 1;
             int tmp = local_scan[a];
@@ -104,18 +103,17 @@ __kernel void scan(__global int* input,
     barrier(CLK_LOCAL_MEM_FENCE);
 
     //Write results from Local to Global memory
-    output[2 * g_id]     = local_scan[2 * l_id];
+    output[2 * g_id] = local_scan[2 * l_id];
     output[2 * g_id + 1] = local_scan[2 * l_id + 1];
 }
 
-
 /** COALESCE KERNEL **/
 __kernel void coalesce(__global int* scan,
-                       __global int* block_sums)
+    __global int* block_sums)
 {
 
-    uint g_id = (uint) get_global_id(0);
-    uint group_id = (uint) get_group_id(0);
+    uint g_id = (uint)get_global_id(0);
+    uint group_id = (uint)get_group_id(0);
 
     int b = block_sums[group_id];
 
@@ -125,30 +123,26 @@ __kernel void coalesce(__global int* scan,
     barrier(CLK_GLOBAL_MEM_FENCE);
 }
 
-
-
 /** REORDER KERNEL **/
 __kernel void reorder(__global int* array,
-                      __global int* histo,
-                      __global int* output,
-                      const int pass,
-                      const int nkeys,
-                      __local int* local_histo,
-                      const __global int * particles)
+    __global int* histo,
+    __global int* output,
+    const int pass,
+    const int nkeys,
+    __local int* local_histo)
 {
-    uint g_id = (uint) get_global_id(0);
-    uint l_id = (uint) get_local_id(0);
-    uint l_size = (uint) get_local_size(0);
+    uint g_id = (uint)get_global_id(0);
+    uint l_id = (uint)get_local_id(0);
+    uint l_size = (uint)get_local_size(0);
 
-    uint group_id = (uint) get_group_id(0);
-    uint n_groups = (uint) get_num_groups(0);
+    uint group_id = (uint)get_group_id(0);
+    uint n_groups = (uint)get_num_groups(0);
 
     //Bring histo to local memory
     int i;
-    for(i = 0; i < BUCK; i++){
+    for (i = 0; i < BUCK; i++) {
         int to = i * n_groups + group_id;
-        local_histo[i * l_size + l_id] =
-                histo[l_size * to + l_id];
+        local_histo[i * l_size + l_id] = histo[l_size * to + l_id];
     }
 
     barrier(CLK_LOCAL_MEM_FENCE);
@@ -156,28 +150,14 @@ __kernel void reorder(__global int* array,
     //Write to global memory in order
     int size = (nkeys / n_groups) / l_size;
     int start = g_id * size;
-    for(i = 0; i < size; i++){
-        int item = array[i + start];
-        int key = particles[item];
+    for (i = 0; i < size; i++) {
+        int key = array[i + start];
         key = (key >> (pass * RADIX)) & (BUCK - 1);
         int pos = local_histo[key * l_size + l_id];
         ++local_histo[key * l_size + l_id];
 
-        output[pos] = item;
+        output[pos] = key;
     }
 
     barrier(CLK_GLOBAL_MEM_FENCE);
-}
-
-__kernel void shuffle_particles(__global struct particle* in_particles,
-                                __global struct particle* out_particles,
-                                const int size,
-                                __global int* index_buffer)
-{
-    uint g_id = (uint) get_global_id(0);
-    if(g_id >= size){
-        return;
-    }
-
-    out_particles[g_id] = in_particles[index_buffer[g_id]];
 }

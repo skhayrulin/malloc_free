@@ -42,11 +42,12 @@
 #else
 #include <CL/cl.hpp>
 #endif
+#include "device.h"
 #include "radixsort.h"
 #include <fstream>
 #include <iostream>
-#include <unordered_map>
 #include <memory>
+#include <unordered_map>
 
 using std::cout;
 using std::endl;
@@ -54,15 +55,15 @@ using std::shared_ptr;
 // OCL constans block
 #define QUEUE_EACH_KERNEL 1
 
+enum LOGGING_MODE {
+    FULL,
+    NO
+};
+
 template <class T = int>
 class ocl_radix_sort_solver {
-
 public:
-    ocl_radix_sort_solver(
-        std::vector<T>* m,
-        shared_ptr<device> d,
-        size_t idx,
-        LOGGING_MODE log_mode = LOGGING_MODE::NO)
+    ocl_radix_sort_solver(std::vector<T>* m, shared_ptr<device> d, size_t idx, LOGGING_MODE log_mode = LOGGING_MODE::NO)
         : model(m)
         , dev(d)
         , device_index(idx)
@@ -73,11 +74,11 @@ public:
         array_dataSize = size * sizeof(int);
         try {
             this->initialize_ocl();
-        } catch (ocl_error& ex) {
+        } catch (...) {
             throw;
         }
     }
-    std::shared_ptr<device> get_device() override
+    std::shared_ptr<device> get_device()
     {
         return this->dev;
     }
@@ -88,20 +89,11 @@ public:
         init_kernels();
     }
 
-    ~ocl_radix_sort_solver() override = default;
+    ~ocl_radix_sort_solver() { }
 
-    void sort() override
+    void sort()
     {
-        copy_buffer_to_device((void*)&(model->get_particles()[0]),
-            particle_list_in, 0, model->size() * sizeof(particle<T>));
-        run_prepare();
-        std::vector<int> cell_id(size, 0);
-        std::vector<int> array_(size, 0);
-        //                copy_buffer_from_device((void *) &(array_[0]),
-        //                                      array_buffer, array_dataSize, 0);
-
-        copy_buffer_from_device((void*)&(cell_id[0]),
-            particle_buffer, array_dataSize, 0);
+        copy_buffer_to_device((void*)&(model[0]), particle_list_in, 0, model->size() * sizeof(int));
 
         for (int pass = 0; pass < BITS / RADIX; ++pass) {
             run_count(pass);
@@ -113,19 +105,11 @@ public:
             array_buffer = output_buffer;
             output_buffer = tmp;
         }
-        copy_buffer_from_device((void*)&(array_[0]),
-            output_buffer, array_dataSize, 0);
-        run_shuffle();
-
-        copy_buffer_from_device(
-            (void*)&(model->get_particles()[0]),
-            particle_list_out,
-            model->size() * sizeof(particle<T>),
-            0);
+        copy_buffer_from_device((void*)&(model[0]), output_buffer, model->size() * sizeof(int), 0);
     }
 
 private:
-    std::vector<int> model;
+    std::vector<T>* model;
     size_t device_index;
     shared_ptr<device> dev;
     std::string msg = dev->name + '\n';
@@ -137,7 +121,6 @@ private:
     cl::Kernel coalesce;
     cl::Kernel reorder;
     cl::Kernel shuffle;
-    cl::Kernel prepare;
 
     cl::Buffer array_buffer;
     cl::Buffer histo_buffer;
@@ -159,7 +142,7 @@ private:
 
     void init_buffers()
     {
-        create_ocl_buffer("array_buffer", array_buffer, CL_MEM_READ_WRITE, array_dataSize);
+        create_ocl_buffer("array_buffer", array_buffer, CL_MEM_READ_WRITE, sizeof(int) * model->size());
         //Create histo buff
         create_ocl_buffer("histo_buffer", histo_buffer, CL_MEM_READ_WRITE, sizeof(int) * BUCK * N_GROUPS * WG_SIZE);
         //Create scan buff
@@ -167,15 +150,15 @@ private:
         //Create blocksum buff
         create_ocl_buffer("blocksum_buffer", blocksum_buffer, CL_MEM_READ_WRITE, sizeof(int) * N_GROUPS);
         //Create output buff
-        create_ocl_buffer("output_buffer", output_buffer, CL_MEM_READ_WRITE, array_dataSize);
+        create_ocl_buffer("output_buffer", output_buffer, CL_MEM_READ_WRITE, sizeof(int) * model->size());
         //Create particle buff
-        create_ocl_buffer("particle_buffer", particle_buffer, CL_MEM_READ_WRITE, array_dataSize);
+        create_ocl_buffer("particle_buffer", particle_buffer, CL_MEM_READ_WRITE, sizeof(int) * model->size());
 
         //particle in list
-        create_ocl_buffer("particle_list_in", particle_list_in, CL_MEM_READ_WRITE, sizeof(particle<T>) * model->size());
+        create_ocl_buffer("particle_list_in", particle_list_in, CL_MEM_READ_WRITE, sizeof(int) * model->size());
 
         //particle out list
-        create_ocl_buffer("particle_list_out", particle_list_out, CL_MEM_READ_WRITE, sizeof(particle<T>) * model->size());
+        create_ocl_buffer("particle_list_out", particle_list_out, CL_MEM_READ_WRITE, sizeof(int) * model->size());
     }
 
     void init_kernels()
@@ -185,8 +168,6 @@ private:
         create_ocl_kernel("scan", blocksum);
         create_ocl_kernel("coalesce", coalesce);
         create_ocl_kernel("reorder", reorder);
-        create_ocl_kernel("shuffle_particles", shuffle);
-        create_ocl_kernel("prepare", prepare);
     }
 
     void initialize_ocl()
@@ -194,13 +175,11 @@ private:
         int err;
         queue = cl::CommandQueue(dev->context, dev->dev, 0, &err);
         if (err != CL_SUCCESS) {
-            throw ocl_error(msg + "Failed to create command queue");
+            throw "Failed to create command queue";
         }
         std::ifstream file(cl_program_file);
         if (!file.is_open()) {
-            throw ocl_error(msg + "Could not open file with OpenCL program check "
-                                  "input arguments oclsourcepath: "
-                + cl_program_file);
+            throw "Could not open file with OpenCL program check input arguments oclsourcepath: ";
         }
         std::string programSource(std::istreambuf_iterator<char>(file),
             (std::istreambuf_iterator<char>()));
@@ -223,8 +202,8 @@ private:
         if (err != CL_SUCCESS) {
             std::string compilationErrors;
             compilationErrors = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(dev->dev);
-            msg += make_msg(msg, "Compilation failed: ", compilationErrors);
-            throw ocl_error(msg);
+            msg += "Compilation failed: " + compilationErrors;
+            throw msg;
         }
         std::cout
             << msg
@@ -238,8 +217,8 @@ private:
         int err;
         b = cl::Buffer(dev->context, flags, size, nullptr, &err);
         if (err != CL_SUCCESS) {
-            std::string error_m = make_msg("Buffer creation failed: ", name, " Error code is ", err);
-            throw ocl_error(error_m);
+            std::string error_m = "Buffer creation failed" + std::string(name);
+            throw error_m;
         }
     }
 
@@ -248,8 +227,8 @@ private:
         int err;
         k = cl::Kernel(program, name, &err);
         if (err != CL_SUCCESS) {
-            std::string error_m = make_msg("Kernel creation failed: ", name, " Error code is ", err);
-            throw ocl_error(error_m);
+            std::string error_m = "Kernel creation failed" + std::string(name);
+            throw error_m;
         }
     }
 
@@ -262,8 +241,8 @@ private:
         // Actually we should check  size and type
         int err = queue.enqueueWriteBuffer(ocl_b, CL_TRUE, offset, size, host_b);
         if (err != CL_SUCCESS) {
-            std::string error_m = make_msg("Copy buffer to device is failed error code is ", err);
-            throw ocl_error(error_m);
+            std::string error_m = "Copy buffer to device is failed error code is " + std::to_string(err);
+            throw error_m;
         }
         queue.finish();
     }
@@ -274,27 +253,10 @@ private:
         // Actualy we should check  size and type
         int err = queue.enqueueReadBuffer(ocl_b, CL_TRUE, offset, size, host_b);
         if (err != CL_SUCCESS) {
-            std::string error_m = make_msg("Copy buffer from device is failed error code is ", err);
-            throw ocl_error(error_m);
+            std::string error_m = "Copy buffer from device is failed error code is " + std::to_string(err);
+            throw error_m;
         }
         queue.finish();
-    }
-
-    int run_prepare()
-    {
-        static size_t dim_round_up = (((size - 1) / WG_SIZE) + 1) * WG_SIZE;
-        if (log_mode == LOGGING_MODE::FULL)
-            std::cout << "run init index buffer --> " << dev->name << std::endl;
-        this->kernel_runner(
-            this->prepare,
-            dim_round_up,
-            WG_SIZE,
-            0,
-            this->particle_buffer,
-            this->array_buffer,
-            this->particle_list_in,
-            int(model->size()),
-            size);
     }
 
     int run_count(int pass)
@@ -391,22 +353,6 @@ private:
             particle_buffer);
     }
 
-    int run_shuffle()
-    {
-        static size_t dim_round_up = (((model->get_particles().size() - 1) / WG_SIZE) + 1) * WG_SIZE;
-        if (log_mode == LOGGING_MODE::FULL)
-            std::cout << "run shuffle_particles kernel --> " << dev->name << std::endl;
-        this->kernel_runner(
-            this->shuffle,
-            dim_round_up,
-            WG_SIZE,
-            0,
-            this->particle_list_in,
-            this->particle_list_out,
-            int(model->size()),
-            this->output_buffer);
-    }
-
     template <typename U, typename... Args>
     int kernel_runner(
         cl::Kernel& ker,
@@ -441,7 +387,7 @@ private:
         queue.finish();
 #endif
         if (err != CL_SUCCESS) {
-            throw ocl_error(make_msg("An ERROR is appearing during work of kernel", err));
+            throw "An ERROR is appearing during work of kernel";
         }
         return err;
     }
