@@ -63,17 +63,17 @@ enum LOGGING_MODE {
 template <class T = int>
 class ocl_radix_sort_solver {
 public:
-    ocl_radix_sort_solver(std::vector<T>* m, shared_ptr<device> d, size_t idx, LOGGING_MODE log_mode = LOGGING_MODE::NO)
+    ocl_radix_sort_solver(std::vector<T>& m, shared_ptr<device> d, LOGGING_MODE log_mode = LOGGING_MODE::NO)
         : model(m)
         , dev(d)
-        , device_index(idx)
         , log_mode(log_mode)
     {
         auto tmp = WG_SIZE * N_GROUPS;
-        size = (m->size() + (tmp - m->size() % tmp));
+        size = (m.size() + (tmp - m.size() % tmp));
         array_dataSize = size * sizeof(int);
         try {
             this->initialize_ocl();
+            init_model();
         } catch (...) {
             throw;
         }
@@ -93,7 +93,7 @@ public:
 
     void sort()
     {
-        copy_buffer_to_device((void*)&(model[0]), particle_list_in, 0, model->size() * sizeof(int));
+        copy_buffer_to_device((void*)(&(model[0])), array_buffer, 0, model.size() * sizeof(int));
 
         for (int pass = 0; pass < BITS / RADIX; ++pass) {
             run_count(pass);
@@ -105,12 +105,11 @@ public:
             array_buffer = output_buffer;
             output_buffer = tmp;
         }
-        copy_buffer_from_device((void*)&(model[0]), output_buffer, model->size() * sizeof(int), 0);
+        copy_buffer_from_device((void*)(&(model[0])), output_buffer, model.size() * sizeof(int), 0);
     }
 
 private:
-    std::vector<T>* model;
-    size_t device_index;
+    std::vector<T>& model;
     shared_ptr<device> dev;
     std::string msg = dev->name + '\n';
     const std::string cl_program_file = "cl_code//cl_radix_sort.cl";
@@ -127,10 +126,6 @@ private:
     cl::Buffer scan_buffer;
     cl::Buffer blocksum_buffer;
     cl::Buffer output_buffer;
-    cl::Buffer particle_buffer;
-
-    cl::Buffer particle_list_in;
-    cl::Buffer particle_list_out;
 
     cl::Buffer null_buffer;
 
@@ -142,7 +137,7 @@ private:
 
     void init_buffers()
     {
-        create_ocl_buffer("array_buffer", array_buffer, CL_MEM_READ_WRITE, sizeof(int) * model->size());
+        create_ocl_buffer("array_buffer", array_buffer, CL_MEM_READ_WRITE, sizeof(int) * model.size());
         //Create histo buff
         create_ocl_buffer("histo_buffer", histo_buffer, CL_MEM_READ_WRITE, sizeof(int) * BUCK * N_GROUPS * WG_SIZE);
         //Create scan buff
@@ -150,15 +145,7 @@ private:
         //Create blocksum buff
         create_ocl_buffer("blocksum_buffer", blocksum_buffer, CL_MEM_READ_WRITE, sizeof(int) * N_GROUPS);
         //Create output buff
-        create_ocl_buffer("output_buffer", output_buffer, CL_MEM_READ_WRITE, sizeof(int) * model->size());
-        //Create particle buff
-        create_ocl_buffer("particle_buffer", particle_buffer, CL_MEM_READ_WRITE, sizeof(int) * model->size());
-
-        //particle in list
-        create_ocl_buffer("particle_list_in", particle_list_in, CL_MEM_READ_WRITE, sizeof(int) * model->size());
-
-        //particle out list
-        create_ocl_buffer("particle_list_out", particle_list_out, CL_MEM_READ_WRITE, sizeof(int) * model->size());
+        create_ocl_buffer("output_buffer", output_buffer, CL_MEM_READ_WRITE, sizeof(int) * model.size());
     }
 
     void init_kernels()
@@ -265,7 +252,7 @@ private:
         static size_t count_local_work_size = WG_SIZE;
         if (log_mode == LOGGING_MODE::FULL)
             std::cout << "run count kernel --> " << dev->name << std::endl;
-        this->kernel_runner(
+        return this->kernel_runner(
             this->count,
             count_global_work_size,
             count_local_work_size,
@@ -274,8 +261,7 @@ private:
             this->histo_buffer,
             cl::Local(sizeof(int) * BUCK * WG_SIZE),
             pass,
-            size,
-            this->particle_buffer);
+            size);
     }
 
     int run_scan()
@@ -349,8 +335,7 @@ private:
             this->output_buffer,
             pass,
             this->size,
-            cl::Local(sizeof(int) * BUCK * WG_SIZE),
-            particle_buffer);
+            cl::Local(sizeof(int) * BUCK * WG_SIZE));
     }
 
     template <typename U, typename... Args>

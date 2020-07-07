@@ -14,15 +14,16 @@ int main(int argc, char** argv)
         data[i] = i_secret;
     }
     auto dev_q = get_dev_queue();
+    cout << "Num of dev is " << dev_q.size() << endl;
     try {
-        ocl_radix_sort_solver<int> solver(&data, dev_q.top(), 0);
+        ocl_radix_sort_solver<int> solver(data, dev_q.top());
         solver.sort();
         for (int i = 0; i < data.size(); ++i) {
-            cout << data[i] << endl;
+            cout << data[i] << ",";
         }
+        cout << endl;
     } catch (std::string& s) {
         cout << s << endl;
     }
-    cout << "Num of dev is " << dev_q.size() << endl;
     return 0;
 }
