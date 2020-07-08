@@ -94,9 +94,14 @@ public:
     void sort()
     {
         copy_buffer_to_device((void*)&(model[0]), array_buffer, 0, model.size() * sizeof(int));
-
+        std::vector<int> histo(BUCK * N_GROUPS * WG_SIZE, 0);
         for (int pass = 0; pass < BITS / RADIX; ++pass) {
             run_count(pass);
+            copy_buffer_from_device((void*)&(histo[0]), histo_buffer, BUCK * N_GROUPS * WG_SIZE * sizeof(int), 0);
+            for (size_t i = 0; i < histo.size(); ++i) {
+                cout << histo[i] << ",";
+            }
+            return;
             run_scan();
             run_blocksum();
             run_coalesce();
@@ -261,8 +266,7 @@ private:
             this->histo_buffer,
             cl::Local(sizeof(int) * BUCK * WG_SIZE),
             pass,
-            size
-        );
+            size);
     }
 
     int run_scan()
