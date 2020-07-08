@@ -93,7 +93,7 @@ public:
 
     void sort()
     {
-        copy_buffer_to_device((void*)(&(model[0])), array_buffer, 0, model.size() * sizeof(int));
+        copy_buffer_to_device((void*)&(model[0]), array_buffer, 0, model.size() * sizeof(int));
 
         for (int pass = 0; pass < BITS / RADIX; ++pass) {
             run_count(pass);
@@ -105,7 +105,7 @@ public:
             array_buffer = output_buffer;
             output_buffer = tmp;
         }
-        copy_buffer_from_device((void*)(&(model[0])), output_buffer, model.size() * sizeof(int), 0);
+        copy_buffer_from_device((void*)&(model[0]), output_buffer, model.size() * sizeof(int), 0);
     }
 
 private:
@@ -261,7 +261,8 @@ private:
             this->histo_buffer,
             cl::Local(sizeof(int) * BUCK * WG_SIZE),
             pass,
-            size);
+            size
+        );
     }
 
     int run_scan()
@@ -271,7 +272,7 @@ private:
         static size_t scan_local_work_size = scan_global_work_size / N_GROUPS;
         if (log_mode == LOGGING_MODE::FULL)
             std::cout << "run scan kernel --> " << dev->name << std::endl;
-        this->kernel_runner(
+        return this->kernel_runner(
             this->scan,
             scan_global_work_size,
             scan_local_work_size,
@@ -289,7 +290,7 @@ private:
         static size_t blocksum_local_work_size = N_GROUPS / 2;
         if (log_mode == LOGGING_MODE::FULL)
             std::cout << "run blocksum kernel --> " << dev->name << std::endl;
-        this->kernel_runner(
+        return this->kernel_runner(
             this->blocksum,
             blocksum_global_work_size,
             blocksum_local_work_size,
@@ -309,7 +310,7 @@ private:
 
         if (log_mode == LOGGING_MODE::FULL)
             std::cout << "run coalesce kernel --> " << dev->name << std::endl;
-        this->kernel_runner(
+        return this->kernel_runner(
             this->coalesce,
             coalesce_global_work_size,
             coalesce_local_work_size,
@@ -325,7 +326,7 @@ private:
         static size_t reorder_local_work_size = WG_SIZE;
         if (log_mode == LOGGING_MODE::FULL)
             std::cout << "run reorder kernel --> " << dev->name << std::endl;
-        this->kernel_runner(
+        return this->kernel_runner(
             this->reorder,
             reorder_global_work_size,
             reorder_local_work_size,

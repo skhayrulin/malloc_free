@@ -1,7 +1,62 @@
+/*******************************************************************************
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2011, 2017 OpenWorm.
+ * http://openworm.org
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the MIT License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/MIT
+ *
+ * Contributors:
+ *     	OpenWorm - http://openworm.org/people.html
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+ * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+ * USE OR OTHER DEALINGS IN THE SOFTWARE.
+ *******************************************************************************/
+
+#ifdef cl_amd_printf
+#pragma OPENCL EXTENSION cl_amd_printf : enable
+#define PRINTF_ON // this comment because using printf leads to very slow work on Radeon r9 290x on my machine
+// don't know why
+#elif defined(cl_intel_printf)
+#pragma OPENCL EXTENSION cl_intel_printf : enable
+#define PRINTF_ON
+#endif
+
+#ifdef _DOUBLE_PRECISION
+#ifdef cl_khr_fp64
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable
+
+#elif defined(cl_amd_fp64)
+#pragma OPENCL EXTENSION cl_amd_fp64 : enable
+//#define _DOUBLE_PRECISION
+#else
+#error "Double precision floating point not supported by OpenCL implementation."
+#endif
+#endif
+
 #include "util/radixsort.h"
 /** COUNT KERNEL **/
 
-__kernel void count(const __global int* input,
+__kernel void count(
+    const __global int* input,
     __global int* output,
     __local int* local_histo,
     const int pass,
@@ -45,12 +100,13 @@ __kernel void count(const __global int* input,
         //Map the local data to its global position
         output[l_size * to + l_id] = local_histo[from];
     }
-
+    //printf("\nSTEP - %d, LEN - %d, mid - %d, first start - %d, first end - %d, second start - %d, second end - %d, id - %d, start - %d\n", step, len, mid, first_sub_array_start,first_sub_array_end, second_sub_array_start, second_sub_array_end, id, start);
     barrier(CLK_GLOBAL_MEM_FENCE);
 }
 
 /** SCAN KERNEL **/
-__kernel void scan(__global int* input,
+__kernel void scan(
+    __global int* input,
     __global int* output,
     __local int* local_scan,
     __global int* block_sum)
@@ -108,7 +164,8 @@ __kernel void scan(__global int* input,
 }
 
 /** COALESCE KERNEL **/
-__kernel void coalesce(__global int* scan,
+__kernel void coalesce(
+    __global int* scan,
     __global int* block_sums)
 {
 
@@ -124,7 +181,8 @@ __kernel void coalesce(__global int* scan,
 }
 
 /** REORDER KERNEL **/
-__kernel void reorder(__global int* array,
+__kernel void reorder(
+    __global int* array,
     __global int* histo,
     __global int* output,
     const int pass,
