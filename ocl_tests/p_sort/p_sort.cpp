@@ -8,7 +8,7 @@ using std::cout;
 using std::endl;
 int main(int argc, char** argv)
 {
-    std::vector<int> data(512, 0);
+    std::vector<int> data(2048, 0);
     for (size_t i = 0; i < data.size(); ++i) {
         int i_secret = rand() % 10;
         data[i] = i_secret;

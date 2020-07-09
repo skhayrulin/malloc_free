@@ -68,8 +68,8 @@ public:
         , dev(d)
         , log_mode(log_mode)
     {
-        auto tmp = WG_SIZE * N_GROUPS;
-        size = (m.size() + (tmp - m.size() % tmp));
+        //auto tmp = WG_SIZE * N_GROUPS;
+        size = m.size(); //(m.size() + (tmp - m.size() % tmp));
         array_dataSize = size * sizeof(int);
         try {
             this->initialize_ocl();
@@ -98,10 +98,12 @@ public:
         for (int pass = 0; pass < BITS / RADIX; ++pass) {
             run_count(pass);
             copy_buffer_from_device((void*)&(histo[0]), histo_buffer, BUCK * N_GROUPS * WG_SIZE * sizeof(int), 0);
+            cout << "===========Hist on interation========" << endl;
             for (size_t i = 0; i < histo.size(); ++i) {
                 cout << histo[i] << ",";
             }
-            return;
+            cout << "=====================================" << endl;
+            // return;
             run_scan();
             run_blocksum();
             run_coalesce();
