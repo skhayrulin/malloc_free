@@ -94,18 +94,25 @@ public:
     void sort()
     {
         copy_buffer_to_device((void*)&(model[0]), array_buffer, 0, model.size() * sizeof(int));
-        std::vector<int> histo(BUCK * N_GROUPS * WG_SIZE, 0);
+        std::vector<int> _histo(BUCK * N_GROUPS * WG_SIZE, 0);
+        std::vector<int> _scan(BUCK * N_GROUPS * WG_SIZE, 0);
+        std::vector<int> _blocksum(N_GROUPS, 0);
         for (int pass = 0; pass < BITS / RADIX; ++pass) {
-            run_count(pass);
-            copy_buffer_from_device((void*)&(histo[0]), histo_buffer, BUCK * N_GROUPS * WG_SIZE * sizeof(int), 0);
-            cout << "===========Hist on interation========" << endl;
-            for (size_t i = 0; i < histo.size(); ++i) {
-                cout << histo[i] << ",";
-            }
-            cout << "=====================================" << endl;
-            // return;
-            run_scan();
+            run_count(pass); // build local histogramm
+            run_scan(); // 
+            // copy_buffer_from_device((void*)&(_scan[0]), scan_buffer, BUCK * N_GROUPS * WG_SIZE * sizeof(int), 0);
+            // cout << "===========Blocksum on interation========" << endl;
+            // for (size_t i = 0; i < _scan.size(); ++i) {
+            //     cout << _scan[i] << ",";
+            // }
+            // cout << "=====================================" << endl;
             run_blocksum();
+            copy_buffer_from_device((void*)&(_blocksum[0]), scan_buffer, N_GROUPS * sizeof(int), 0);
+            cout << "===========Blocksum on interation========" << endl;
+            for (size_t i = 0; i < _blocksum.size(); ++i) {
+                cout << _blocksum[i] << ",";
+            }
+            cout << "\n=======================================" << endl;
             run_coalesce();
             run_reorder(pass);
             auto tmp = array_buffer;
